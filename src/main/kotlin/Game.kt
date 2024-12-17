@@ -243,10 +243,6 @@ enum class Resource {
     HOBBIES,
 }
 
-fun List<Building>.changeOf(resource: Resource): Int {
-    return this.map { it.useOf(resource) }.sum()
-}
-
 // Helper extension function to schedule actions
 fun GameState.scheduleAction(action: TurnAction, turnsDelay: Int): GameState {
     val newAction = ScheduledAction(action, turnsDelay)
@@ -268,10 +264,6 @@ fun GameState.removeBuilding(building: Building): GameState {
     } else {
         copy(buildings = buildings + (building to currentCount - 1))
     }
-}
-
-fun GameState.getBuildingCount(building: Building): Int {
-    return buildings[building] ?: 0
 }
 
 fun GameState.canAffordBuilding(building: Building): Boolean {

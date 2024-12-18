@@ -296,3 +296,7 @@ fun GameState.build(building: Building): GameState {
         glassStock = glassStock - (building.buildCost[Resource.GLASS] ?: 0)
     ).addBuilding(building)
 }
+
+fun GameState.demolish(building: Building): GameState {
+    return removeBuilding(building)
+}

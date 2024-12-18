@@ -1,5 +1,8 @@
 package fr.xibalba.aj.civilization
 
+import fr.xibalba.aj.civilization.ai.NeuralNetwork
+import kotlin.collections.toDoubleArray
+
 interface AI {
     val name: String
     fun playTurn(gameState: GameState): List<TurnAction>
@@ -57,7 +60,7 @@ open class SimpleAI1 : AI {
         return actions
     }
 
-    private fun calculateBuildingValue(state: GameState, building: Building): Float {
+    open fun calculateBuildingValue(state: GameState, building: Building): Float {
         var value = 0f
 
         // Add value for each resource produced based on factors and current production
@@ -112,3 +115,78 @@ open class SimpleAI1 : AI {
     }
 }
 
+class SimpleAI2 : SimpleAI1() {
+    override val name = "Simple AI v2"
+
+    override fun calculateBuildingValue(state: GameState, building: Building): Float {
+        var value = super.calculateBuildingValue(state, building)
+        
+        // Add value for population growth potential
+        if (building.productions.any { it.key == Resource.HOUSES }) {
+            // Houses directly increase population capacity
+            value *= 1.5f
+        }
+        
+        // Add value for happiness-related buildings when population is significant
+        if (state.population > 10) {
+            if (building.productions.any { it.key in listOf(Resource.HOBBIES, Resource.HEALTH, Resource.EDUCATION) }) {
+                value *= (1.0f + (state.population / 50.0f))  // Scale up importance with population
+            }
+        }
+        
+        // Reduce value if we don't have enough workers for the building
+        if (building.consumptions.any { it.key == Resource.WORKERS }) {
+            val requiredWorkers = building.consumptions[Resource.WORKERS]!!
+            if (state.workers < requiredWorkers) {
+                value *= 0.5f
+            }
+        }
+        
+        return value
+    }
+}
+
+val NEURAL_NETWORK_INPUTS = 16 + Buildings.ALL_BUILDINGS.size
+val NEURAL_NETWORK_OUTPUTS = Buildings.ALL_BUILDINGS.size * 2
+class NeuralNetworkAI(val neuralNetwork: NeuralNetwork, name: String? = null) : AI {
+    override val name = name ?: "Neural Network AI"
+
+    init {
+        require(neuralNetwork.layers.first() == NEURAL_NETWORK_INPUTS ) { "Neural network must have $NEURAL_NETWORK_INPUTS input nodes" }
+        require(neuralNetwork.layers.last() == NEURAL_NETWORK_OUTPUTS) { "Neural network must have $NEURAL_NETWORK_OUTPUTS output nodes" }
+    }
+
+    override fun playTurn(gameState: GameState): List<TurnAction> {
+        val input = doubleArrayOf(
+            gameState.turn.toDouble(),
+            gameState.population.toDouble(),
+            gameState.waterFactor.toDouble(),
+            gameState.foodFactor.toDouble(),
+            gameState.powerFactor.toDouble(),
+            gameState.healthFactor.toDouble(),
+            gameState.educationFactor.toDouble(),
+            gameState.housesFactor.toDouble(),
+            gameState.hobbiesFactor.toDouble(),
+            gameState.ironStock.toDouble(),
+            gameState.coalStock.toDouble(),
+            gameState.copperStock.toDouble(),
+            gameState.woodStock.toDouble(),
+            gameState.rockStock.toDouble(),
+            gameState.glassStock.toDouble(),
+            gameState.water.toDouble()
+        ) + Buildings.ALL_BUILDINGS.map { gameState.buildings[it] ?: 0 }.map { it.toDouble() }.toDoubleArray()
+        val output = neuralNetwork.feedForward(input)
+        val actions = mutableListOf<TurnAction>()
+        for (i in Buildings.ALL_BUILDINGS.indices) {
+            if (output[i] > 0.5) {
+                actions.add { state -> state.build(Buildings.ALL_BUILDINGS[i]) }
+            }
+        }
+        for (i in Buildings.ALL_BUILDINGS.indices) {
+            if (output[i + Buildings.ALL_BUILDINGS.size] > 0.5) {
+                actions.add { state -> state.demolish(Buildings.ALL_BUILDINGS[i]) }
+            }
+        }
+        return actions
+    }
+}

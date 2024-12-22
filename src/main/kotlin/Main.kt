@@ -5,17 +5,18 @@ import java.io.File
 import kotlin.time.measureTime
 
 fun main() {
-    trainEvolutionary {
-        populationEvaluation(it, 100)
-    }
+    measureTime {
+        trainEvolutionary {
+            happinessEvaluation(it, 100)
+        }
+    }.also(::println)
     val trainedNetwork = NeuralNetwork.load(File("trained_network.nn"))
     val ais = listOf(NoAI(), SimpleAI1(), SimpleAI2(), NeuralNetworkAI(trainedNetwork))
     simulate(ais, 100)
 }
 
 fun simulate(ais: List<AI>, turns: Int) {
-    measureTime {
-        repeat(100) {
+        repeat(10) {
             val results = ais.associate { ai ->
                 val gameEngine = GameEngine()
                 val (happiness, population) = gameEngine.simulate(ai, turns)
@@ -23,5 +24,4 @@ fun simulate(ais: List<AI>, turns: Int) {
             }
             println(results)
         }
-    }.also(::println)
 }

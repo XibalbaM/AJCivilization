@@ -2,6 +2,7 @@ package fr.xibalba.aj.civilization
 
 import kotlin.collections.map
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sin
 
 const val MIN_WATER_FACTOR = 0.2f
@@ -223,7 +224,7 @@ data class GameState(
 
     val happiness = (water * waterFactor + food * foodFactor + power * powerFactor + 
                     health * healthFactor + education * educationFactor + 
-                    houses * housesFactor + hobbies * hobbiesFactor) / population.toFloat()
+                    houses * housesFactor + hobbies * hobbiesFactor) / max(population.toFloat(), 1.0f)
 }
 
 enum class Resource {

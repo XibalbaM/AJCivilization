@@ -17,26 +17,45 @@ data class NeuralNetwork(
         DoubleArray(layers[i + 1]) { Random.nextDouble(-1.0, 1.0) }
     }
 ) {
-    val hiddenLayers = layers.sliceArray(1 until layers.size - 1)
-    val activations = Array(layers.size) { i -> DoubleArray(layers[i]) }
-
+    private val lastLayerIndex = layers.size - 1
+    val hiddenLayers = layers.sliceArray(1 until lastLayerIndex)
+    
+    private val activations = Array(layers.size) { i -> DoubleArray(layers[i]) }
+    
     fun feedForward(input: DoubleArray): DoubleArray {
-        require(input.size == layers[0]) { "Input size must match the first layer size" }
+        require(input.size == layers[0]) { "Input size ${input.size} does not match first layer size ${layers[0]}" }
 
-        input.copyInto(activations[0])
+        System.arraycopy(input, 0, activations[0], 0, input.size)
 
-        for (i in 1 until layers.size) {
-            val prevLayer = i - 1
-            for (j in activations[i].indices) {
-                var sum = biases[prevLayer][j]
-                for (k in activations[prevLayer].indices) {
-                    sum += activations[prevLayer][k] * weights[prevLayer][j][k]
+        for (i in 1..lastLayerIndex) {
+            val currentLayer = activations[i]
+            val previousLayer = activations[i - 1]
+            val layerWeights = weights[i - 1]
+            val layerBiases = biases[i - 1]
+            
+            for (j in currentLayer.indices) {
+                var sum = layerBiases[j]
+                val neuronWeights = layerWeights[j]
+                
+                var k = 0
+                while (k <= previousLayer.size - 4) {
+                    sum += previousLayer[k] * neuronWeights[k] +
+                           previousLayer[k + 1] * neuronWeights[k + 1] +
+                           previousLayer[k + 2] * neuronWeights[k + 2] +
+                           previousLayer[k + 3] * neuronWeights[k + 3]
+                    k += 4
                 }
-                activations[i][j] = sigmoid(sum)
+                
+                while (k < previousLayer.size) {
+                    sum += previousLayer[k] * neuronWeights[k]
+                    k++
+                }
+                
+                currentLayer[j] = sigmoid(sum)
             }
         }
 
-        return activations.last()
+        return activations[lastLayerIndex]
     }
 
     private fun sigmoid(x: Double): Double = 1.0 / (1.0 + exp(-x))
@@ -63,48 +82,32 @@ data class NeuralNetwork(
     }
 
     fun save(output: OutputStream) {
-        val writer = ObjectOutputStream(output)
-
-        writer.writeObject(layers)
-
-        // Write weights
-        for (i in weights.indices) {
-            for (j in weights[i].indices) {
-                writer.writeObject(weights[i][j])
+        ObjectOutputStream(output).use { writer ->
+            writer.writeObject(layers)
+            
+            weights.forEach { layer ->
+                layer.forEach { writer.writeObject(it) }
             }
-        }
-
-        // Write biases
-        for (i in biases.indices) {
-            writer.writeObject(biases[i])
+            
+            biases.forEach { writer.writeObject(it) }
         }
     }
     companion object {
         fun load(input: InputStream): NeuralNetwork {
-            val reader = ObjectInputStream(input)
-
-            val layers = reader.readObject() as IntArray
-            
-            // Read weights
-            val weights = Array(layers.size - 1) { i ->
-                Array(layers[i + 1]) { j ->
-                    reader.readObject() as DoubleArray
+            ObjectInputStream(input).use { reader ->
+                val layers = reader.readObject() as IntArray
+                
+                val weights = Array(layers.size - 1) { i ->
+                    Array(layers[i + 1]) { reader.readObject() as DoubleArray }
                 }
+                
+                val biases = Array(layers.size - 1) { reader.readObject() as DoubleArray }
+                
+                return NeuralNetwork(layers, weights, biases)
             }
-            
-            // Read biases 
-            val biases = Array(layers.size - 1) { i ->
-                reader.readObject() as DoubleArray
-            }
-            
-            return NeuralNetwork(layers, weights, biases)
         }
 
-        fun load(file: File): NeuralNetwork {
-            return file.inputStream().use {
-                load(it)
-            }
-        }
+        fun load(file: File): NeuralNetwork = file.inputStream().use { load(it) }
     }
 }
 
